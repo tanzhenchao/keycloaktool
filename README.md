@@ -1,7 +1,7 @@
 # keycloaktool
 一款实现Keycloak HA之间DB数据自动同步的工具
-# 1. 基础知识
-## 1.1. 系统架构
+# 1 基础知识
+## 1.1 系统架构
 ~~~
 https://websso.cmdschool.org(nginx anyCast Cluster)
            |
@@ -21,19 +21,19 @@ https://websso.cmdschool.org(nginx anyCast Cluster)
 - dgrhbk01和dgrhbk02使用的数据库为dgrhbkdb01，hkrhbk01和hkrhbk02使用的数据库为hkrhbkdb01
 - 数据库dgrhbkdb01与hkrhbkdb01相互独立，使用本章的脚本实现同步
 
-## 1.2. 同步逻辑
+## 1.2 同步逻辑
 - 关闭所有目标Keycloak节点应用程序服务（keycloak.service）
 - 将源Keycloak节点的数据库通过mysqldump下载到临时目录
 - 将mysqldump下载到临时目录的数据导入到目标Keylcoak节点的数据库
 - 启动所有目标Keycloak节点应用程序服务
 
-## 1.3. 数据来源
+## 1.3 数据来源
 - 脚本读取源节点的/etc/keycloak/keycloak.conf获取源节点的数据库参数
 - 脚本读取目标节点的/etc/keycloak/keycloak.conf获取目标节点的数据库参数
 - 源和目标Keycloak节点应用程序服务（keycloak.service）节点名称、登陆的账号来源于变量
 
-# 2. 部署工具
-## 2.1. 部署脚本
+# 2 部署工具
+## 2.1 部署脚本
 On dgrhbk01
 ~~~
 # mkdir -p ~/scripts/
@@ -43,7 +43,7 @@ On dgrhbk01
 # chmod +x /usr/local/bin/keycloaktool
 ~~~
 
-## 2.2. 修改配置
+## 2.2 修改配置
 On dgrhbk01
 ~~~
 # vim /usr/local/bin/keycloaktool
@@ -68,7 +68,7 @@ On dgrhbk01
 # mkdir -p /backup
 ~~~
 
-## 2.3. 配置公钥认证
+## 2.3 配置公钥认证
 On dgrhbk01
 ~~~
 # ssh-keygen -t rsa -P '' -f ~/.ssh/id_rsa
@@ -82,14 +82,14 @@ On dgrhbk01
 # ssh hkrhbk02
 ~~~
 
-## 2.4. 设置数据库权限
+## 2.4 设置数据库权限
 On hkrhbkdb01
 ~~~
 # mysql -uroot -p
 > grant all privileges on keycloak.* to 'keycloak'@'10.168.200.54' identified by 'keycloakpwd';
 ~~~
 
-# 3. 测试脚本
+# 3 测试脚本
 ## 3.1 获取脚本帮助
 On dgrhbk01
 # keycloaktool 
