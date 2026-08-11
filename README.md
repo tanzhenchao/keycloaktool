@@ -121,7 +121,7 @@ On dgrhbk01
 # keycloaktool keycloak start target
 ~~~
 
-# 3.3 自动执行同步
+## 3.3 自动执行同步
 ### 3.3.1 执行自动同步参数(自动执行以上所有步骤)
 On dgrhbk01
 ~~~
@@ -136,7 +136,7 @@ On dgrhbk01
 ~~~
 0 5 * * * /usr/local/bin/keycloaktool db autosync
 ~~~
-# 3.4 检查节点状态
+## 3.4 检查节点状态
 ### 3.4.1 手动检查节点状态（无消息警告）
 On dgrhbk01
 ~~~
@@ -170,7 +170,7 @@ On dgrhbk01
 ~~~
 */5 * * * * /usr/local/bin/keycloaktool keycloak check
 ~~~
-# 3.5 检查日志
+## 3.5 检查日志
 On dgrhbk01
 ~~~
 # cat /var/log/keycloaktool.log
