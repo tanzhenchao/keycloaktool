@@ -154,7 +154,7 @@ On dgrhbk01
 ~~~
 # keycloaktool keycloak check
 ~~~
-如果节点异常，可见如下范例消息，
+如果节点异常，用户的Tigase客户端可收到如下范例消息，
 ~~~
 Keycloak Health Check Failed
 Host: hkrhbk02
