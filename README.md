@@ -90,7 +90,7 @@ On hkrhbkdb01
 > grant all privileges on keycloak.* to 'keycloak'@'10.168.200.54' identified by 'keycloakpwd';
 ~~~
 
-# 3 测试脚本
+# 3 测试工具
 ## 3.1 获取脚本帮助
 On dgrhbk01
 # keycloaktool 
