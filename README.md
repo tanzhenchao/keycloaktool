@@ -1,5 +1,5 @@
 # keycloaktool
-一款实现Keycloak HA之间DB数据自动同步的工具
+一款实现Keycloak HA之间DB数据自动同步和节点状态检查的工具
 # 1 基础知识
 ## 1.1 系统架构
 ~~~
