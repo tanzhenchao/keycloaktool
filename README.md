@@ -154,6 +154,13 @@ On dgrhbk01
 ~~~
 # keycloaktool keycloak check
 ~~~
+如果节点异常，可见如下范例消息，
+~~~
+Keycloak Health Check Failed
+Host: hkrhbk02
+URL: https://hkrhbk02:9000/health/ready
+Reason: Unable to connect
+~~~
 ### 3.4.3 设置脚本定时执行（节点异常会触发Tigase警告消息）
 On dgrhbk01
 ~~~
