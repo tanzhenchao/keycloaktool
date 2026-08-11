@@ -1,14 +1,15 @@
 #/bin/bash
 
-sourceKeycloakHost="dgrhbk01"
-sourcekeycloakConf="/etc/keycloak/keycloak.conf"
-targeKeycloakHost="hkrhbk01"
-targekeycloakConf="/etc/keycloak/keycloak.conf"
+syncSourceHost="dg2rhbk01"
+syncSourceConf="/etc/keycloak/keycloak.conf"
+syncTargeHost="hkrhbk01"
+syncTargeConf="/etc/keycloak/keycloak.conf"
 
 logFile="/var/log/$(basename $0).log"
 syncDir="/backup"
 backupKeeptime='+7'
-keycloakHosts="hkrhbk01 hkrhbk02"
+sourceKeycloakHosts="dg2rhbk01 dg2rhbk02"
+targetKeycloakHosts="hkrhbk01 hkrhbk02"
 sshUser="root"
 serviceName="keycloak"
 
@@ -19,6 +20,7 @@ tigaseApiURL="https://tigase.cmdschool.org:8092/tigase/pushText"
 
 parameter1="$1"
 parameter2="$2"
+parameter3="$3"
 
 getDBConf() {
   local conf=$(cat)
@@ -58,7 +60,7 @@ syncDB() {
 
   # Validate parameters
   if [ -z "$sourceDBHost" ] || [ -z "$targetDBHost" ]; then
-    echo "$(date +%Y-%m-%d-%H:%M:%S) [ERROR] Database connection parameters cannot be empty." | tee -a "$logFile"
+    echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Database connection parameters cannot be empty." | tee -a "$logFile"
     return 1
   fi
 
@@ -70,14 +72,14 @@ syncDB() {
   # Export source database
   mysqldump -h"$sourceDBHost" -P"$sourceDBPort" -u"$sourceDBUser" -p"$sourceDBPass" "$sourceDBName" > "$dumpFile"
   if [ $? -ne 0 ]; then
-    echo "$(date +%Y-%m-%d-%H:%M:%S) [ERROR] Failed to export source database: ${sourceDBName}" | tee -a "$logFile"
+    echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Failed to export source database: ${sourceDBName}" | tee -a "$logFile"
     return 2
   fi
 
   # Import into target database
   mysql -h"$targetDBHost" -P"$targetDBPort" -u"$targetDBUser" -p"$targetDBPass" "$targetDBName" < "$dumpFile"
   if [ $? -ne 0 ]; then
-    echo "$(date +%Y-%m-%d-%H:%M:%S) [ERROR] Failed to import data into target database: ${targetDBName}" | tee -a "$logFile"
+    echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Failed to import data into target database: ${targetDBName}" | tee -a "$logFile"
     return 3
   fi
 
@@ -85,7 +87,7 @@ syncDB() {
     gzip "$dumpFile"
   fi
 
-  echo "$(date +%Y-%m-%d-%H:%M:%S) [INFO] Database synchronization completed successfully: '${sourceDBHost}:${sourceDBName}' -> '${targetDBHost}:${targetDBName}'" | tee -a "$logFile"
+  echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] Database synchronization completed successfully: '${sourceDBHost}:${sourceDBName}' -> '${targetDBHost}:${targetDBName}'" | tee -a "$logFile"
   return 0
 }
 
@@ -99,7 +101,7 @@ backupTargetDB() {
 
   # Validate parameters
   if [ -z "$targetDBHost" ] || [ -z "$targetDBName" ]; then
-    echo "$(date +%Y-%m-%d-%H:%M:%S) [ERROR] Database backup parameters cannot be empty." | tee -a "$logFile"
+    echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Database backup parameters cannot be empty." | tee -a "$logFile"
     return 1
   fi
 
@@ -113,14 +115,14 @@ backupTargetDB() {
   mysqldump -h"$targetDBHost" -P"$targetDBPort" -u"$targetDBUser" -p"$targetDBPass" "$targetDBName" > "$backupFile"
 
   if [ $? -ne 0 ]; then
-    echo "$(date +%Y-%m-%d-%H:%M:%S) [ERROR] Failed to back up database: ${targetDBName}" | tee -a "$logFile"
+    echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Failed to back up database: ${targetDBName}" | tee -a "$logFile"
     return 2
   fi
 
   if [ -f "$backupFile" ]; then
     gzip "$backupFile"
   fi
-  echo "$(date +%Y-%m-%d-%H:%M:%S) [INFO] Database backup completed successfully: ${backupFile}.gz" | tee -a "$logFile"
+  echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] Database backup completed successfully: ${backupFile}.gz" | tee -a "$logFile"
   return 0
 }
 
@@ -138,26 +140,26 @@ stopService() {
     local service=$3
 
     if ! remoteExec "$host" "$user" "systemctl is-active --quiet $service"; then
-        echo "$(date +%Y-%m-%d-%H:%M:%S) [INFO] $service is not running on $host" | tee -a "$logFile"
+        echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] $service is not running on $host" | tee -a "$logFile"
         return 0
     fi
 
-    echo "$(date +%Y-%m-%d-%H:%M:%S) [INFO] Stopping $service on $host..." | tee -a "$logFile"
+    echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] Stopping $service on $host..." | tee -a "$logFile"
 
     if ! remoteExec "$host" "$user" "sudo systemctl stop $service"; then
-        echo "$(date +%Y-%m-%d-%H:%M:%S) [ERROR] Failed to stop $service on $host" | tee -a "$logFile"
+        echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Failed to stop $service on $host" | tee -a "$logFile"
         return 1
     fi
 
     for ((i=0; i<30; i++)); do
         if ! remoteExec "$host" "$user" "systemctl is-active --quiet $service"; then
-            echo "$(date +%Y-%m-%d-%H:%M:%S) [INFO] $service stopped successfully on $host" | tee -a "$logFile"
+            echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] $service stopped successfully on $host" | tee -a "$logFile"
             return 0
         fi
         sleep 1
     done
 
-    echo "$(date +%Y-%m-%d-%H:%M:%S) [ERROR] Timeout waiting for $service to stop on $host" | tee -a "$logFile"
+    echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Timeout waiting for $service to stop on $host" | tee -a "$logFile"
     return 2
 }
 
@@ -167,26 +169,26 @@ startService() {
     local service=$3
 
     if remoteExec "$host" "$user" "systemctl is-active --quiet $service"; then
-        echo "$(date +%Y-%m-%d-%H:%M:%S) [INFO] $service is already running on $host" | tee -a "$logFile"
+        echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] $service is already running on $host" | tee -a "$logFile"
         return 0
     fi
 
-    echo "$(date +%Y-%m-%d-%H:%M:%S) [INFO] Starting $service on $host..." | tee -a "$logFile"
+    echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] Starting $service on $host..." | tee -a "$logFile"
 
     if ! remoteExec "$host" "$user" "sudo systemctl start $service"; then
-        echo "$(date +%Y-%m-%d-%H:%M:%S) [ERROR] Failed to start $service on $host" | tee -a "$logFile"
+        echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Failed to start $service on $host" | tee -a "$logFile"
         return 1
     fi
 
     for ((i=0; i<30; i++)); do
         if remoteExec "$host" "$user" "systemctl is-active --quiet $service"; then
-            echo "$(date +%Y-%m-%d-%H:%M:%S) [INFO] $service started successfully on $host" | tee -a "$logFile"
+            echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] $service started successfully on $host" | tee -a "$logFile"
             return 0
         fi
         sleep 1
     done
 
-    echo "$(date +%Y-%m-%d-%H:%M:%S) [ERROR] Timeout waiting for $service to start on $host" | tee -a "$logFile"
+    echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Timeout waiting for $service to start on $host" | tee -a "$logFile"
     return 2
 }
 
@@ -208,7 +210,7 @@ urlencode() {
     python3 -c "import sys, urllib.parse as ul; print(ul.quote_plus(sys.argv[1]))" "$@"
 }
 
-msg2Tigase() {
+msg2ComCat() {
   local tigaseEmployeeID="$1"
   local logMessage="$2"
 
@@ -219,7 +221,7 @@ msg2Tigase() {
 }
 
 backupKeycloakDB() {
-  targeKeycloakVars=$(ssh "$targeKeycloakHost" cat "$targekeycloakConf" | getDBConf)
+  targeKeycloakVars=$(ssh "$syncTargeHost" cat "$syncTargeConf" | getDBConf)
 
   targeDBUser=$(echo "$targeKeycloakVars" | grep "^dbUser" | awk -F':' '{print $2}')
   targeDBPass=$(echo "$targeKeycloakVars" | grep "^dbPass" | awk -F':' '{print $2}')
@@ -233,8 +235,8 @@ backupKeycloakDB() {
 }
 
 syncKeycloakDB() {
-  sourceKeycloakVars=$(ssh "$sourceKeycloakHost" cat "$sourcekeycloakConf" | getDBConf)
-  targeKeycloakVars=$(ssh "$targeKeycloakHost" cat "$targekeycloakConf" | getDBConf)
+  sourceKeycloakVars=$(ssh "$syncSourceHost" cat "$syncSourceConf" | getDBConf)
+  targeKeycloakVars=$(ssh "$syncTargeHost" cat "$syncTargeConf" | getDBConf)
 
   sourceDBType=$(echo "$sourceKeycloakVars" | grep "^dbType" | awk -F':' '{print $2}')
   sourceDBUser=$(echo "$sourceKeycloakVars" | grep "^dbUser" | awk -F':' '{print $2}')
@@ -266,7 +268,7 @@ autoSyncKeycloakDB() {
   stopServiceStatus=0
   startServiceStatus=0
 
-  stopKeycloak "$keycloakHosts"
+  stopKeycloak "$targetKeycloakHosts"
   if [ $? -ne 0 ]; then
     stopServiceStatus=1
   fi
@@ -283,7 +285,7 @@ autoSyncKeycloakDB() {
     fi
   fi
 
-  startKeycloak "$keycloakHosts"
+  startKeycloak "$targetKeycloakHosts"
   if [ $? -ne 0 ]; then
     startServiceStatus=1
   fi
@@ -296,7 +298,7 @@ autoSyncKeycloakDB() {
     exit 0
   fi
   logMessage="Websso HA Sync Failed:"$'\n'"please check log file $logFile on $(hostname -s)"
-  msg2Tigase "$tigaseEmployeeID" "$logMessage"
+  msg2ComCat "$tigaseEmployeeID" "$logMessage"
 }
 
 stopKeycloak() {
@@ -325,7 +327,7 @@ startKeycloak() {
   return $startServiceStatus
 }
 
-checkKeycloak() {
+checkKeycloakStatus() {
   local serviceHosts="$1"
 
   checkServiceStatus=0
@@ -338,41 +340,134 @@ checkKeycloak() {
   return $checkServiceStatus
 }
 
+checkKeycloakReady() {
+    local serviceHost="$1"
+    local keycloakUrl="https://${serviceHost}:9000/health/ready"
+
+    local result
+    local overall
+    local warnings
+    local logMessage
+
+    result=$(curl -k -s --connect-timeout 5 --max-time 10 "$keycloakUrl")
+    local ret=$?
+
+    if [[ $ret -ne 0 ]]; then
+        logMessage="Keycloak Health Check Failed"$'\n'"Host: ${serviceHost}"$'\n'"URL: ${keycloakUrl}"$'\n'"Reason: Unable to connect"
+
+        msg2ComCat "$tigaseEmployeeID" "$logMessage"
+        return 1
+    fi
+
+    if ! echo "$result" | jq -e . >/dev/null 2>&1; then
+        logMessage="Keycloak Health Check Failed"$'\n'"Host: ${serviceHost}"$'\n'"URL: ${keycloakUrl}"$'\n'"Reason: Invalid JSON response"
+
+        msg2ComCat "$tigaseEmployeeID" "$logMessage"
+        return 1
+    fi
+
+    overall=$(echo "$result" | jq -r '.status')
+
+    warnings=$(echo "$result" | jq -r '
+        (.checks // [])
+        | .[]
+        | select(.status != "UP")
+        | "\(.name): \(.status)"
+    ')
+
+    if [[ "$overall" != "UP" ]]; then
+        logMessage="Keycloak Health Check Failed"$'\n'"Host: ${serviceHost}"$'\n'"URL: ${keycloakUrl}"$'\n'"Overall Status: ${overall}"$'\n'"Failed Checks:"$'\n'"${warnings}"$'\n'"Action Required: Verify Keycloak service and network connectivity."
+
+        msg2ComCat "$tigaseEmployeeID" "$logMessage"
+        return 1
+    fi
+
+    return 0
+}
+
 case "$parameter1" in
   keycloak)
     case "$parameter2" in
       stop)
-            stopKeycloak "$keycloakHosts"
+	case "$parameter3" in
+          target)
+            stopKeycloak "$targetKeycloakHosts"
             ;;
+          source)
+            stopKeycloak "$sourceKeycloakHosts"
+            ;;
+          *)
+            echo "Examples:"
+            echo "  $0 keycloak stop target"
+            echo "  $0 keycloak stop source"
+            ;;
+        esac
+        ;;
       start)
-            startKeycloak "$keycloakHosts"
+	case "$parameter3" in
+          target)
+            startKeycloak "$targetKeycloakHosts"
             ;;
+          source)
+            startKeycloak "$sourceKeycloakHosts"
+            ;;
+          *)
+            echo "Examples:"
+            echo "  $0 keycloak start target"
+            echo "  $0 keycloak start source"
+            ;;
+        esac
+        ;;
+      restart)
+	case "$parameter3" in
+          target)
+            stopKeycloak "$targetKeycloakHosts"
+            startKeycloak "$targetKeycloakHosts"
+            ;;
+          source)
+            stopKeycloak "$sourceKeycloakHosts"
+            startKeycloak "$sourceKeycloakHosts"
+            ;;
+          *)
+            echo "Examples:"
+            echo "  $0 keycloak restart target"
+            echo "  $0 keycloak restart source"
+            ;;
+        esac
+        ;;
       status)
-            checkKeycloak "$keycloakHosts"
-            ;;
+	keycloakHosts="${sourceKeycloakHosts} ${targetKeycloakHosts}"
+        checkKeycloakStatus "$keycloakHosts"
+        ;;
+      check)
+	keycloakHosts="${sourceKeycloakHosts} ${targetKeycloakHosts}"
+	for keycloakHost in $keycloakHosts; do
+	  checkKeycloakReady "$keycloakHost"
+        done
+	;;
       *)
-            echo "Usage: $0 keycloak {stop|start|status}"
-            ;;
+	echo "Usage: $0 keycloak {stop|start|restart|status|check} [source|target]"
+        ;;
       esac
       ;;
     db)
       case "$parameter2" in
         backup)
-             backupKeycloakDB
-             ;;
+          backupKeycloakDB
+          ;;
         sync)
-             syncKeycloakDB
-             ;;
+          syncKeycloakDB
+          ;;
         autosync)
-             autoSyncKeycloakDB 1
-             ;;
+          autoSyncKeycloakDB 1
+          ;;
         *)
-             echo "Usage: $0 db {backup|sync|autosync}"
-             ;;
-        esac
-        ;;
+          echo "Usage: $0 db {backup|sync|autosync}"
+          ;;
+      esac
+      ;;
     *)
-        echo "Usage: $0 {keycloak|db}"
-        ;;
+      echo "Usage: $0 {keycloak|db}"
+      ;;
 esac
 exit 0
