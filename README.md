@@ -100,7 +100,7 @@ Usage: /usr/local/bin/keycloaktool {keycloak|db}
 ### 3.2.1 停止所有目标Keycloak节点的服务
 On dgrhbk01
 ~~~
-# keycloaktool keycloak stop
+# keycloaktool keycloak stop target
 ~~~
 
 ### 3.2.2 备份所有目标Keycloak节点的数据库
@@ -118,7 +118,7 @@ On dgrhbk01
 ### 3.2.4 启动所有目标Keycloak节点的服务
 On dgrhbk01
 ~~~
-# keycloaktool keycloak start
+# keycloaktool keycloak start target
 ~~~
 
 # 3.3 自动执行同步
