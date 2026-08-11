@@ -137,12 +137,24 @@ On dgrhbk01
 0 5 * * * /usr/local/bin/keycloaktool db autosync
 ~~~
 # 3.4 检查节点状态
-### 3.4.1 手动检查节点状态
+### 3.4.1 手动检查节点状态（无消息警告）
+On dgrhbk01
+~~~
+# keycloaktool keycloak status
+~~~
+可见如下显示，
+~~~
+keycloak is running on dgrhbk01
+keycloak is running on dgrhbk02
+keycloak is running on hkrhbk01
+keycloak is running on hkrhbk02
+~~~
+### 3.4.2 手动检查节点状态（节点异常会触发Tigase警告消息）
 On dgrhbk01
 ~~~
 # keycloaktool keycloak check
 ~~~
-### 3.4.2 设置脚本定时执行
+### 3.4.3 设置脚本定时执行（节点异常会触发Tigase警告消息）
 On dgrhbk01
 ~~~
 # crontab -e
