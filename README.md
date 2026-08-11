@@ -136,7 +136,22 @@ On dgrhbk01
 ~~~
 0 5 * * * /usr/local/bin/keycloaktool db autosync
 ~~~
-# 3.4 检查日志
+# 3.4 检查节点状态
+### 3.4.1 手动检查节点状态
+On dgrhbk01
+~~~
+# keycloaktool keycloak check
+~~~
+### 3.4.2 设置脚本定时执行
+On dgrhbk01
+~~~
+# crontab -e
+~~~
+加入如下配置，
+~~~
+*/5 * * * * /usr/local/bin/keycloaktool keycloak check
+~~~
+# 3.5 检查日志
 On dgrhbk01
 ~~~
 # cat /var/log/keycloaktool.log
