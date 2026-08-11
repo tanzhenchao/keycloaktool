@@ -50,15 +50,16 @@ On dgrhbk01
 ~~~
 配置修改如下，
 ~~~
-sourceKeycloakHost="dgrhbk01"
-sourcekeycloakConf="/etc/keycloak/keycloak.conf"
-targeKeycloakHost="hkrhbk01"
-targekeycloakConf="/etc/keycloak/keycloak.conf"
+syncSourceHost="dg2rhbk01"
+syncSourceConf="/etc/keycloak/keycloak.conf"
+syncTargeHost="hkrhbk01"
+syncTargeConf="/etc/keycloak/keycloak.conf"
 
 logFile="/var/log/$(basename $0).log"
 syncDir="/backup"
 backupKeeptime='+7'
-keycloakHosts="hkrhbk01 hkrhbk02"
+sourceKeycloakHosts="dg2rhbk01 dg2rhbk02"
+targetKeycloakHosts="hkrhbk01 hkrhbk02"
 sshUser="root"
 serviceName="keycloak"
 ~~~
