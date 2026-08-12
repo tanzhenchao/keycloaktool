@@ -60,7 +60,7 @@ syncDB() {
 
   # Validate parameters
   if [ -z "$sourceDBHost" ] || [ -z "$targetDBHost" ]; then
-    echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Database connection parameters cannot be empty." | tee -a "$logFile"
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [ERROR] Database connection parameters cannot be empty." | tee -a "$logFile"
     return 1
   fi
 
@@ -72,14 +72,14 @@ syncDB() {
   # Export source database
   mysqldump -h"$sourceDBHost" -P"$sourceDBPort" -u"$sourceDBUser" -p"$sourceDBPass" "$sourceDBName" > "$dumpFile"
   if [ $? -ne 0 ]; then
-    echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Failed to export source database: ${sourceDBName}" | tee -a "$logFile"
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [ERROR] Failed to export source database: ${sourceDBName}" | tee -a "$logFile"
     return 2
   fi
 
   # Import into target database
   mysql -h"$targetDBHost" -P"$targetDBPort" -u"$targetDBUser" -p"$targetDBPass" "$targetDBName" < "$dumpFile"
   if [ $? -ne 0 ]; then
-    echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Failed to import data into target database: ${targetDBName}" | tee -a "$logFile"
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [ERROR] Failed to import data into target database: ${targetDBName}" | tee -a "$logFile"
     return 3
   fi
 
@@ -87,7 +87,7 @@ syncDB() {
     gzip "$dumpFile"
   fi
 
-  echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] Database synchronization completed successfully: '${sourceDBHost}:${sourceDBName}' -> '${targetDBHost}:${targetDBName}'" | tee -a "$logFile"
+  echo "$(date +'%Y-%m-%d %H:%M:%S') [INFO] Database synchronization completed successfully: '${sourceDBHost}:${sourceDBName}' -> '${targetDBHost}:${targetDBName}'" | tee -a "$logFile"
   return 0
 }
 
@@ -101,7 +101,7 @@ backupTargetDB() {
 
   # Validate parameters
   if [ -z "$targetDBHost" ] || [ -z "$targetDBName" ]; then
-    echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Database backup parameters cannot be empty." | tee -a "$logFile"
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [ERROR] Database backup parameters cannot be empty." | tee -a "$logFile"
     return 1
   fi
 
@@ -115,14 +115,14 @@ backupTargetDB() {
   mysqldump -h"$targetDBHost" -P"$targetDBPort" -u"$targetDBUser" -p"$targetDBPass" "$targetDBName" > "$backupFile"
 
   if [ $? -ne 0 ]; then
-    echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Failed to back up database: ${targetDBName}" | tee -a "$logFile"
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [ERROR] Failed to back up database: ${targetDBName}" | tee -a "$logFile"
     return 2
   fi
 
   if [ -f "$backupFile" ]; then
     gzip "$backupFile"
   fi
-  echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] Database backup completed successfully: ${backupFile}.gz" | tee -a "$logFile"
+  echo "$(date +'%Y-%m-%d %H:%M:%S') [INFO] Database backup completed successfully: ${backupFile}.gz" | tee -a "$logFile"
   return 0
 }
 
@@ -140,26 +140,26 @@ stopService() {
     local service=$3
 
     if ! remoteExec "$host" "$user" "systemctl is-active --quiet $service"; then
-        echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] $service is not running on $host" | tee -a "$logFile"
+        echo "$(date +'%Y-%m-%d %H:%M:%S') [INFO] $service is not running on $host" | tee -a "$logFile"
         return 0
     fi
 
-    echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] Stopping $service on $host..." | tee -a "$logFile"
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [INFO] Stopping $service on $host..." | tee -a "$logFile"
 
     if ! remoteExec "$host" "$user" "sudo systemctl stop $service"; then
-        echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Failed to stop $service on $host" | tee -a "$logFile"
+        echo "$(date +'%Y-%m-%d %H:%M:%S') [ERROR] Failed to stop $service on $host" | tee -a "$logFile"
         return 1
     fi
 
     for ((i=0; i<30; i++)); do
         if ! remoteExec "$host" "$user" "systemctl is-active --quiet $service"; then
-            echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] $service stopped successfully on $host" | tee -a "$logFile"
+            echo "$(date +'%Y-%m-%d %H:%M:%S') [INFO] $service stopped successfully on $host" | tee -a "$logFile"
             return 0
         fi
         sleep 1
     done
 
-    echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Timeout waiting for $service to stop on $host" | tee -a "$logFile"
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [ERROR] Timeout waiting for $service to stop on $host" | tee -a "$logFile"
     return 2
 }
 
@@ -169,26 +169,26 @@ startService() {
     local service=$3
 
     if remoteExec "$host" "$user" "systemctl is-active --quiet $service"; then
-        echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] $service is already running on $host" | tee -a "$logFile"
+        echo "$(date +'%Y-%m-%d %H:%M:%S') [INFO] $service is already running on $host" | tee -a "$logFile"
         return 0
     fi
 
-    echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] Starting $service on $host..." | tee -a "$logFile"
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [INFO] Starting $service on $host..." | tee -a "$logFile"
 
     if ! remoteExec "$host" "$user" "sudo systemctl start $service"; then
-        echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Failed to start $service on $host" | tee -a "$logFile"
+        echo "$(date +'%Y-%m-%d %H:%M:%S') [ERROR] Failed to start $service on $host" | tee -a "$logFile"
         return 1
     fi
 
     for ((i=0; i<30; i++)); do
         if remoteExec "$host" "$user" "systemctl is-active --quiet $service"; then
-            echo "$(date +%Y-%m-%d %H:%M:%S) [INFO] $service started successfully on $host" | tee -a "$logFile"
+            echo "$(date +'%Y-%m-%d %H:%M:%S') [INFO] $service started successfully on $host" | tee -a "$logFile"
             return 0
         fi
         sleep 1
     done
 
-    echo "$(date +%Y-%m-%d %H:%M:%S) [ERROR] Timeout waiting for $service to start on $host" | tee -a "$logFile"
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [ERROR] Timeout waiting for $service to start on $host" | tee -a "$logFile"
     return 2
 }
 
