@@ -11,9 +11,9 @@ https://websso.cmdschool.org(nginx anyCast Cluster)
            |    (10.168.200.55,keycloak,active)          | 
            |                                             
            |--> https://hkrhbk01.cmdschool.org:8443 ---> |                    | 
-           |    (10.168.2.246,keycloak,backup)           |------------------->|tcp://hkrhbkdb01.cmdschool.org:3306
+           |    (10.168.208.184,keycloak,backup)         |------------------->|tcp://hkrhbkdb01.cmdschool.org:3306
            |--> https://hkrhbk02.cmdschool.org:8443 ---> |                    |    (10.168.208.183,mariaDB)
-           |    (10.168.208.218,keycloak,backup)         |
+           |    (10.168.208.185,keycloak,backup)         |
 ~~~
 如上图所示：
 - Nginx代理发布服务websso.cmdschool.org，其中dgrhbk01和dgrhbk02为活动节点，hkrhbk01和hkrhbk02为备份节点
