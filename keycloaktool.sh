@@ -1,6 +1,6 @@
 #/bin/bash
 
-syncSourceHost="dg2rhbk01"
+syncSourceHost="dgrhbk01"
 syncSourceConf="/etc/keycloak/keycloak.conf"
 syncTargeHost="hkrhbk01"
 syncTargeConf="/etc/keycloak/keycloak.conf"
@@ -8,7 +8,7 @@ syncTargeConf="/etc/keycloak/keycloak.conf"
 logFile="/var/log/$(basename $0).log"
 syncDir="/backup"
 backupKeeptime='+7'
-sourceKeycloakHosts="dg2rhbk01 dg2rhbk02"
+sourceKeycloakHosts="dgrhbk01 dgrhbk02"
 targetKeycloakHosts="hkrhbk01 hkrhbk02"
 sshUser="root"
 serviceName="keycloak"
@@ -17,6 +17,10 @@ tigaseAppID="10086"
 tigaseAppPassword="*********"
 tigaseEmployeeID="will,jeff"
 tigaseApiURL="https://tigase.cmdschool.org:8092/tigase/pushText"
+
+keycloakUrl="https://websso.cmdschool.org"
+keycloakAdmin="admin"
+keycloakPassword="adminpwd"
 
 parameter1="$1"
 parameter2="$2"
@@ -349,7 +353,7 @@ checkKeycloakReady() {
     local warnings
     local logMessage
 
-    result=$(curl -k -s --connect-timeout 5 --max-time 10 "$keycloakUrl")
+    result=$(curl -k -s --connect-timeout 10 --max-time 30 "$keycloakUrl")
     local ret=$?
 
     if [[ $ret -ne 0 ]]; then
@@ -383,6 +387,119 @@ checkKeycloakReady() {
     fi
 
     return 0
+}
+
+getToken() {
+  userToken=$(curl -sk \
+  -X POST "$keycloakUrl/realms/master/protocol/openid-connect/token" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "username=$keycloakAdmin" \
+  -d "password=$keycloakPassword" \
+  -d "grant_type=password" \
+  -d "client_id=admin-cli" | jq -r '.access_token')
+  echo "$userToken"
+}
+
+setCredentials() {
+  kcadm.sh config credentials --server "$keycloakUrl" --realm master --user "$keycloakAdmin" --password "$keycloakPassword" >/dev/null 2>&1
+}
+
+execDBSql() {
+  local sourceKeycloakVars=$(ssh "$syncSourceHost" cat "$syncSourceConf" | getDBConf)
+
+  local dbType=$(echo "$sourceKeycloakVars" | grep "^dbType" | awk -F':' '{print $2}')
+  local dbUser=$(echo "$sourceKeycloakVars" | grep "^dbUser" | awk -F':' '{print $2}')
+  local dbPass=$(echo "$sourceKeycloakVars" | grep "^dbPass" | awk -F':' '{print $2}')
+  local dbHost=$(echo "$sourceKeycloakVars" | grep "^dbHost" | awk -F':' '{print $2}')
+  local dbPort=$(echo "$sourceKeycloakVars" | grep "^dbPort" | awk -F':' '{print $2}')
+  local dbName=$(echo "$sourceKeycloakVars" | grep "^dbName" | awk -F':' '{print $2}')
+
+  local execSql="$1"
+  mysql -h "$dbHost" -P "${dbPort:-3306}" -u "$dbUser" -p"$dbPass" -D "$dbName" -e "$execSql" 2>/dev/null
+}
+
+getRealmsName() {
+  execDBSql "select NAME from REALM \G;"  | grep ^NAME: | awk '{print $2}'
+}
+
+getRealmsID() {
+  local realmsID="$1"
+  execDBSql "select ID from REALM where NAME='"$realmsID"' \G;"  | grep ^ID: | awk '{print $2}'
+}
+
+getRealmsProviderID() {
+  local realmsName="$1"
+  local realmsID=$(getRealmsID "$realmsName")
+  execDBSql "select ID from COMPONENT where PROVIDER_TYPE = 'org.keycloak.storage.UserStorageProvider' and REALM_ID = '"$realmsID"' \G;" | grep ^ID: | awk '{print $2}'
+}
+
+getProviderName() {
+  local providerID="$1"
+  execDBSql "select NAME from COMPONENT where PROVIDER_TYPE = 'org.keycloak.storage.UserStorageProvider' and ID = '"$providerID"' \G;" | grep ^NAME: | awk '{print $2}'
+}
+
+getProviderLdapConf() {
+  local providerID="$1"
+  execDBSql "select name,value from COMPONENT_CONFIG where (name='connectionUrl' or name='bindDn' or name='bindCredential') and COMPONENT_ID='${providerID}' \G;" \
+  	    | awk '{val=$0} /name:/ {sub(/^[^:]+:[[:space:]]*/, "", val); n=val} /value:/ {sub(/^[^:]+:[[:space:]]*/, "", val); print n ": " val}'
+}
+
+checkLdap() {
+  local realmName="$1"
+  local ldapUrl="$2"
+  local ldapBindDn="$3"
+  local ldapBindCredential="$4"
+  local userToken=$(getToken)
+
+  if [[ -z "${realmName}" || -z "${ldapUrl}" || -z "${ldapBindDn}" || -z "${ldapBindCredential}" ]]; then
+    echo "Usage: $0 ldap check <realm name> <ldap url> <ldap bindn> <ldap bind credential>"
+    return 1
+  fi
+
+  local httpResponse=$(curl -s -w "\n%{http_code}" -X POST \
+  "$keycloakUrl/admin/realms/$realmName/testLDAPConnection" \
+  -H "Authorization: Bearer $userToken" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  --data-urlencode "action=testAuthentication" \
+  --data-urlencode "connectionUrl=$ldapUrl" \
+  --data-urlencode "bindDn=$ldapBindDn" \
+  --data-urlencode "bindCredential=$ldapBindCredential" \
+  --data-urlencode "useTruststoreSpi=ldapsOnly")
+
+  local httpCode=$(echo "$httpResponse" | tail -n1)
+  if [ "$httpCode" -eq 200 ] || [ "$httpCode" -eq 204 ]; then
+    return 0
+  else
+    return 1
+  fi
+}
+
+checkProviderLdap() {
+  totalStatus=0
+  for realmName in $(getRealmsName); do
+    for providerID in $(getRealmsProviderID "$realmName"); do
+      local ldapConf=$(getProviderLdapConf "$providerID")
+      local ldapUrl=$(echo "$ldapConf" | grep "connectionUrl:" | awk '{print $2}')
+      local ldapBindDn=$(echo "$ldapConf" | grep "bindDn:" | awk '{print $2}')
+      local ldapBindCredential=$(echo "$ldapConf" | grep "bindCredential:" | awk '{print $2}')
+      local providerName=$(getProviderName "$providerID")
+
+      checkLdap "$realmName" "$ldapUrl" "$ldapBindDn" "$ldapBindCredential"
+      local ret=$?
+      if [ $ret -ne 0 ]; then
+        totalStatus=$((totalStatus + 1))
+        echo "$(date +%Y-%m-%d-%H:%M:%S) [ERROR] Test failure $realmName -> $providerName." | tee -a "$logFile"
+      else
+        echo "$(date +%Y-%m-%d-%H:%M:%S) [INFO] Test passed $realmName -> $providerName."
+      fi
+      #break 2
+    done
+  done
+  if [ "$totalStatus" -eq 0 ]; then
+    exit 0
+  fi
+  logMessage="Websso provider Failed:"$'\n'"please check log file $logFile on $(hostname -s)"
+  msg2ComCat "$tigaseEmployeeID" "$logMessage"
 }
 
 case "$parameter1" in
@@ -443,6 +560,12 @@ case "$parameter1" in
 	keycloakHosts="${sourceKeycloakHosts} ${targetKeycloakHosts}"
 	for keycloakHost in $keycloakHosts; do
 	  checkKeycloakReady "$keycloakHost"
+          ret=$?
+	  if [ "$ret" -ne 0 ]; then
+            echo "$(date +%Y-%m-%d-%H:%M:%S) [ERROR] Node $keycloakHost check failed."
+	  else
+            echo "$(date +%Y-%m-%d-%H:%M:%S) [INFO] Node $keycloakHost check passed successfully."
+          fi
         done
 	;;
       *)
@@ -466,8 +589,27 @@ case "$parameter1" in
           ;;
       esac
       ;;
+    ldap)
+      case "$parameter2" in
+        check)
+	     checkLdap
+             ;;
+        scan)
+	     checkProviderLdap
+             ;;
+        disable)
+             echo disable
+             ;;
+        enable)
+             echo enable
+             ;;
+        *)
+             echo "Usage: $0 ldap {check|scan|disable|enable}"
+             ;;
+        esac
+        ;;
     *)
-      echo "Usage: $0 {keycloak|db}"
+      echo "Usage: $0 {keycloak|db|ldap}"
       ;;
 esac
 exit 0
