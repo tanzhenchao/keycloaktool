@@ -154,6 +154,13 @@ On dgrhbk01
 ~~~
 # keycloaktool keycloak check
 ~~~
+执行节点可见如下提示，
+~~~
+2026-11-16-11:51:01 [INFO] Node dgrhbk01 check passed successfully.
+2026-11-16-11:51:01 [INFO] Node dgrhbk02 check passed successfully.
+2026-11-16-11:51:01 [INFO] Node hkrhbk01 check passed successfully.
+2026-11-16-11:51:02 [INFO] Node hkrhbk02 check passed successfully.
+~~~
 如果节点异常，用户的Tigase客户端可收到如下范例消息，
 ~~~
 Keycloak Health Check Failed
