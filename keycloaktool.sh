@@ -25,6 +25,9 @@ keycloakPassword="adminpwd"
 parameter1="$1"
 parameter2="$2"
 parameter3="$3"
+parameter4="$4"
+
+source /etc/profile
 
 getDBConf() {
   local conf=$(cat)
@@ -427,11 +430,21 @@ getRealmsID() {
   execDBSql "select ID from REALM where NAME='"$realmsID"' \G;"  | grep ^ID: | awk '{print $2}'
 }
 
-getRealmsProviderID() {
+getRealmsProviderIDs() {
   local realmsName="$1"
+
   local realmsID=$(getRealmsID "$realmsName")
   execDBSql "select ID from COMPONENT where PROVIDER_TYPE = 'org.keycloak.storage.UserStorageProvider' and REALM_ID = '"$realmsID"' \G;" | grep ^ID: | awk '{print $2}'
 }
+
+getRealmsProviderID() {
+  local realmsName="$1"
+  local providerName="$2"
+
+  local realmsID=$(getRealmsID "$realmsName")
+  execDBSql "select ID from COMPONENT where PROVIDER_TYPE = 'org.keycloak.storage.UserStorageProvider' and REALM_ID = '"$realmsID"'and NAME = '"$providerName"' \G;" | grep ^ID: | awk '{print $2}'
+}
+
 
 getProviderName() {
   local providerID="$1"
@@ -440,21 +453,25 @@ getProviderName() {
 
 getProviderLdapConf() {
   local providerID="$1"
-  execDBSql "select name,value from COMPONENT_CONFIG where (name='connectionUrl' or name='bindDn' or name='bindCredential') and COMPONENT_ID='${providerID}' \G;" \
+  execDBSql "select name,value from COMPONENT_CONFIG where (name='connectionUrl' or name='bindDn' or name='bindCredential' or name='enabled') and COMPONENT_ID='${providerID}' \G;" \
   	    | awk '{val=$0} /name:/ {sub(/^[^:]+:[[:space:]]*/, "", val); n=val} /value:/ {sub(/^[^:]+:[[:space:]]*/, "", val); print n ": " val}'
 }
 
-checkLdap() {
+checkProviderLdapAvailable() {
   local realmName="$1"
-  local ldapUrl="$2"
-  local ldapBindDn="$3"
-  local ldapBindCredential="$4"
-  local userToken=$(getToken)
+  local providerName="$2"
 
-  if [[ -z "${realmName}" || -z "${ldapUrl}" || -z "${ldapBindDn}" || -z "${ldapBindCredential}" ]]; then
-    echo "Usage: $0 ldap check <realm name> <ldap url> <ldap bindn> <ldap bind credential>"
+  if [[ -z "${realmName}" || -z "${providerName}" ]]; then
+    echo "Usage: $0 ldap check <realm name> <provider name>"
     return 1
   fi
+
+  local userToken=$(getToken)
+  local providerID=$(getRealmsProviderID "$realmName" "$providerName")
+  local ldapConf=$(getProviderLdapConf "$providerID")
+  local ldapUrl=$(echo "$ldapConf" | grep "connectionUrl:" | awk '{print $2}')
+  local ldapBindDn=$(echo "$ldapConf" | grep "bindDn:" | awk '{print $2}')
+  local ldapBindCredential=$(echo "$ldapConf" | grep "bindCredential:" | awk '{print $2}')
 
   local httpResponse=$(curl -s -w "\n%{http_code}" -X POST \
   "$keycloakUrl/admin/realms/$realmName/testLDAPConnection" \
@@ -468,29 +485,112 @@ checkLdap() {
 
   local httpCode=$(echo "$httpResponse" | tail -n1)
   if [ "$httpCode" -eq 200 ] || [ "$httpCode" -eq 204 ]; then
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [INFO] Test availability LDAP provider $realmName -> $providerName is passed." 
     return 0
   else
+    echo "$(date +%Y-%m-%d-%H:%M:%S) [WARN] Test availability LDAP provider $realmName -> $providerName is failure." | tee -a "$logFile"
     return 1
   fi
 }
 
-checkProviderLdap() {
+getProviderLdapIsEnable() {
+  local realmName="$1"
+  local providerName="$2"
+
+  if [[ -z "${realmName}" || -z "${providerName}" ]]; then
+    echo "Usage: $0 ldap status <realm name> <provider name>"
+    return 1
+  fi
+  local providerID=$(getRealmsProviderID "$realmName" "$providerName")
+  local ldapConf=$(getProviderLdapConf "$providerID")
+  local ldapEnable=$(echo "$ldapConf" | grep "enabled:" | awk '{print $2}')
+  if [ "$ldapEnable" == "true" ]; then
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [INFO] Get status ldap provider $realmName -> $providerName is enabled=true."
+    return 0
+  else
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [INFO] Get status ldap provider $realmName -> $providerName is enabled=false."
+    return 1
+  fi
+}
+
+disableProviderLdap() {
+  local realmName="$1"
+  local providerName="$2"
+
+  if [[ -z "${realmName}" || -z "${providerName}" ]]; then
+    echo "Usage: $0 ldap disable <realm name> <provider name>"
+    return 1
+  fi
+
+  setCredentials
+  local providerID=$(getRealmsProviderID "$realmName" "$providerName")
+  getProviderLdapIsEnable "$realmName" "$providerName" >> /dev/null
+  local ret=$?
+  if [ "$ret" -ne 0 ]; then
+    return 0
+  fi
+  kcadm.sh update components/"$providerID" -r "$realmName" -s 'config.enabled=["false"]'
+  #${RHBK_HOME}/bin/kcadm.sh update components/"$providerID" -r "$realmName" -s 'config.enabled=["false"]'
+  local ret2=$?
+  if [ "$ret2" -eq 0 ]; then
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [WARN] Update config ldap provider $realmName -> $providerName enabled=false completed successfully!" | tee -a "$logFile"
+    return 0
+  else
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [ERROR] Update config ldap provider $realmName -> $providerName enabled=false failed." | tee -a "$logFile"
+    return 1
+  fi
+}
+
+enableProviderLdap() {
+  local realmName="$1"
+  local providerName="$2"
+
+  if [[ -z "${realmName}" || -z "${providerName}" ]]; then
+    echo "Usage: $0 ldap enable <realm name> <provider name>"
+    return 1
+  fi
+
+  setCredentials
+  local providerID=$(getRealmsProviderID "$realmName" "$providerName")
+  getProviderLdapIsEnable "$realmName" "$providerName" >> /dev/null
+  local ret=$?
+  if [ "$ret" -eq 0 ]; then
+    return 0
+  fi
+  #${RHBK_HOME}/bin/kcadm.sh update components/"$providerID" -r "$realmName" -s 'config.enabled=["true"]'
+  kcadm.sh update components/"$providerID" -r "$realmName" -s 'config.enabled=["true"]'
+  local ret2=$?
+  if [ "$ret2" -eq 0 ]; then
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [WARN] Update config ldap provider $realmName -> $providerName enabled=true completed successfully!" | tee -a "$logFile"
+    return 0
+  else
+    echo "$(date +'%Y-%m-%d %H:%M:%S') [ERROR] Update config ldap provider $realmName -> $providerName enabled=true failed." | tee -a "$logFile"
+    return 1
+  fi
+}
+
+scanProviderLdap() {
   totalStatus=0
   for realmName in $(getRealmsName); do
-    for providerID in $(getRealmsProviderID "$realmName"); do
-      local ldapConf=$(getProviderLdapConf "$providerID")
-      local ldapUrl=$(echo "$ldapConf" | grep "connectionUrl:" | awk '{print $2}')
-      local ldapBindDn=$(echo "$ldapConf" | grep "bindDn:" | awk '{print $2}')
-      local ldapBindCredential=$(echo "$ldapConf" | grep "bindCredential:" | awk '{print $2}')
+    for providerID in $(getRealmsProviderIDs "$realmName"); do
       local providerName=$(getProviderName "$providerID")
+      local success=false
 
-      checkLdap "$realmName" "$ldapUrl" "$ldapBindDn" "$ldapBindCredential"
-      local ret=$?
-      if [ $ret -ne 0 ]; then
-        totalStatus=$((totalStatus + 1))
-        echo "$(date +%Y-%m-%d-%H:%M:%S) [ERROR] Test failure $realmName -> $providerName." | tee -a "$logFile"
+      for ((i=1; i<=3; i++)); do
+        checkProviderLdapAvailable "$realmName" "$providerName"
+        local ret=$?
+        if [ $ret -eq 0 ]; then
+          success=true
+          break
+        fi
+	sleep 0.5
+      done
+
+      if [ "$success" = true ]; then
+        enableProviderLdap "$realmName" "$providerName"
       else
-        echo "$(date +%Y-%m-%d-%H:%M:%S) [INFO] Test passed $realmName -> $providerName."
+        disableProviderLdap "$realmName" "$providerName"
+        totalStatus=$((totalStatus + 1))
       fi
       #break 2
     done
@@ -592,19 +692,22 @@ case "$parameter1" in
     ldap)
       case "$parameter2" in
         check)
-	     checkLdap
+             checkProviderLdapAvailable "$parameter3" "$parameter4"
              ;;
         scan)
-	     checkProviderLdap
+	     scanProviderLdap
              ;;
         disable)
-             echo disable
+             disableProviderLdap "$parameter3" "$parameter4"
              ;;
         enable)
-             echo enable
+             enableProviderLdap "$parameter3" "$parameter4"
              ;;
+	status)
+             getProviderLdapIsEnable "$parameter3" "$parameter4"
+	     ;;
         *)
-             echo "Usage: $0 ldap {check|scan|disable|enable}"
+             echo "Usage: $0 ldap {check|scan|disable|enable|status}"
              ;;
         esac
         ;;
